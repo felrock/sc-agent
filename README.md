@@ -1,1 +1,2 @@
-## Simple agent for pysc2
+## Exploring pysc2
+
