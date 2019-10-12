@@ -1,7 +1,7 @@
 from pysc2.env import sc2_env
 from pysc2.lib import actions, features
 from absl import app
-from zerg_agent import DefeatRoaches
+from defeatroaches_bot import DefeatRoaches
 
 def main(unused_argv):
   agent = DefeatRoaches()

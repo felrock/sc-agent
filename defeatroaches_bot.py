@@ -29,51 +29,96 @@ _PLAYER_NEUTRAL = features.PlayerRelative.NEUTRAL  # beacon/minerals
 _PLAYER_ENEMY = features.PlayerRelative.ENEMY
 _PLAYER_ALLY = features.PlayerRelative.ALLY
 
+_hp = 2
+
 
 FUNCTIONS = actions.FUNCTIONS
 
-units = []
-
-
 def _xy_locs(mask):
-  """Mask should be a set of bools from comparison with a feature layer."""
+    """Mask should be a set of bools from comparison with a feature layer."""
 
-  y, x = mask.nonzero()
-  return list(zip(x, y))
+    y, x = mask.nonzero()
+    return list(zip(x, y))
 
-def moveMarineAwayFromRoaches(roaches, marine):
 
-    new_pos = (0,0)
+def WhoHasAggro(prev_hp, curr_hp):
 
-    roach_avg_x = roaches.sum(key=lambda x:x[0])/len(roaches)
-    roach_avg_v = roaches.sum(key=lambda x:x[1])/len(roaches)
-    
-    new_pos = (marine[0]-roach_avg_x[0], marine[1]-roach_avg_x[1])
+    is_low = 20
+    for i in range(len(curr_hp)):
+        if curr_hp[i] < is_low:
+            if curr_hp[i] - prev_hp[i] != 0:
+                return i
 
-    return new_pos
-
-def findMarineWithLowHpAndBeingAttack(marines):
-    pass
-
+    return None
 
 class DefeatRoaches(base_agent.BaseAgent):
     """An agent specifically for solving the DefeatRoaches map."""
 
+    def __init___(self, *args, **kwags):
+
+        super(DefeatRoaches, self).__init__(*args, **kwargs)
+        self.step_delay = 0
+        self.units_hp = []
+
+    def reset(self):
+
+        super(DefeatRoaches, self).reset()
+        self.step_delay = 0
+        self.units_hp = []
+
     def step(self, obs):
+
         super(DefeatRoaches, self).step(obs)
+        
+        if self.step_delay ==  50:
+            # move selected marine
+            self.step_delay -= 1
+            player_relative = obs.observation.feature_screen.player_relative
+            
+            roaches = _xy_locs(player_relative == _PLAYER_ENEMY)
+            marines = _xy_locs(player_relative == _PLAYER_ALLY)
+
+            mm = marines.mean()
+            rm = roaches.mean()
+            new_pos = MoveAway(mm, rm)
+
+            return FUNCTIONS.Scan_Move_screen('now', new_pos)
+
+        elif self.step_delay > 0:
+            # select army after sufficient time
+
+            self.step_delay -= 1
+            return FUNCTIONS.no_op()
+       else:
+
+            # step_delay is over 
+            return FUNCTIONS.select_army('select')
+
         if FUNCTIONS.Attack_screen.id in obs.observation.available_actions:
 
-            _TERRAN_COMMANDCENTER = 18
-            _UNIT_TYPE = features.SCREEN_FEATURES.unit_type.index
-            unit_type = obs.observation['screen'][_UNIT_TYPE]
-            cc_y, cc_x = (unit_type == _TERRAN_COMMANDCENTER).nonzero() 
+            selected_units = obs.observation['multi_select'] 
 
+            if len(self.units_hp) > 0:
+                # check which marines has aggro and move them
+                # the unit that is losing hp has aggro
+                unit_w_aggro = WhoHasAggro(self.units_hp, selected_units)
+                if unit_w_aggro:
+
+                    # que work for aggro unit
+                    coord = FindMoveLocation(obs)
+                    self.step_delay = 50
+                    return FUNCTIONS.select_unit('select', unit_w_aggro)
+            else:
+
+                # stores all the hp from all the units selected
+                self.units_hp = [unit[_hp] for unit in selected_units]
+            
             player_relative = obs.observation.feature_screen.player_relative
             roaches = _xy_locs(player_relative == _PLAYER_ENEMY)
             if not roaches:
                 return FUNCTIONS.no_op()
 
-# Find the roach with max y coord.
+            # Find the roach with max y coord.
             target = roaches[numpy.argmax(numpy.array(roaches)[:, 1])]
             return FUNCTIONS.Attack_screen("now", target)
 
@@ -83,4 +128,3 @@ class DefeatRoaches(base_agent.BaseAgent):
 
 
         return FUNCTIONS.no_op()
-
